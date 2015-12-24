@@ -1,6 +1,6 @@
 # osx provisioning
  
-forked from shin1x1/osx-provisioning-with-ansible
+Inspired by https://github.com/shin1x1/osx-provisioning-with-ansible
  
 ## Usage
  
