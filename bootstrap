@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import argparse
+import ConfigParser
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib2
+
+homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
+extra_roles_repository = 'https://github.com/ojos/ansible-roles.git'
+loading_frames = ['|', '/', '-', '\\']
+
+
+def _loading(current=None):
+    current = 0 if current is None or current == len(loading_frames) - 1 else current + 1
+    sys.stdout.write("\rwaiting : %s" % loading_frames[current])
+    sys.stdout.flush()
+    return current
+
+
+def _install_CLT():
+    subprocess.Popen(['xcode-select', '--install'],
+                     stdin=subprocess.PIPE,
+                     stdout=subprocess.PIPE,
+                     stderr=subprocess.PIPE,
+                     shell=False)
+    progress = None
+
+    while True:
+        p = subprocess.Popen(['gcc', '-v'],
+                             stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             shell=False)
+        if p.wait() == 0:
+            print 'command line tools had been installed!!'
+            break
+        else:
+            progress = _loading(progress)
+            time.sleep(0.5)
+
+
+def _install_homebrew():
+    res = urllib2.urlopen(homebrew_url)
+    codes = res.read()
+    subprocess.call(['ruby', '-e', codes], shell=False)
+
+
+def _install_ansible():
+    subprocess.call(['brew', 'install', 'ansible'], shell=False)
+
+
+def _clone_ansible_roles():
+    extra_role_dir = './ansible-roles'
+    if os.path.exists(extra_role_dir):
+        print 'remove extra roles dir...'
+        shutil.rmtree('./ansible-roles')
+
+    subprocess.call(['git', 'clone', extra_roles_repository, 'ansible-roles'], shell=False)
+
+
+def _change_zsh():
+    subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
+
+
+def _excute_ansible_playbook(personal):
+    if personal:
+        cmd = ['ansible-playbook', '-i', 'hosts', './personal.yml', '--ask-vault-pass']
+    else:
+        cmd = ['ansible-playbook', '-i', 'hosts', './basic.yml']
+    subprocess.call(cmd, shell=False)
+
+
+def _main(personal):
+    _install_CLT()
+    _install_homebrew()
+    _install_ansible()
+    _clone_ansible_roles()
+    _change_zsh()
+    _excute_ansible_playbook(personal)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=u'Build environment on OSX')
+    parser.add_argument('-p', '--personal',
+                        action='store_true',
+                        default=False,
+                        help='Personal playbook execution flag (default: Fasle)')
+    args = parser.parse_args()
+    _main(args.personal)
