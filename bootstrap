@@ -10,12 +10,12 @@ import sys
 import time
 import urllib2
 
-homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
-extra_roles_repository = 'https://github.com/ojos/ansible-roles.git'
-loading_frames = ['|', '/', '-', '\\']
+config_path = './buildout.cfg'
+config = None
 
 
 def _loading(current=None):
+    loading_frames = ['|', '/', '-', '\\']
     current = 0 if current is None or current == len(loading_frames) - 1 else current + 1
     sys.stdout.write("\rwaiting : %s" % loading_frames[current])
     sys.stdout.flush()
@@ -45,7 +45,7 @@ def _install_CLT():
 
 
 def _install_homebrew():
-    res = urllib2.urlopen(homebrew_url)
+    res = urllib2.urlopen(config.get('homebrew', 'url'))
     codes = res.read()
     subprocess.call(['ruby', '-e', codes], shell=False)
 
@@ -60,35 +60,67 @@ def _clone_ansible_roles():
         print 'remove extra roles dir...'
         shutil.rmtree('./ansible-roles')
 
+    extra_roles_repository = config.get('ansible', 'extra_roles_repository')
     subprocess.call(['git', 'clone', extra_roles_repository, 'ansible-roles'], shell=False)
 
 
 def _change_zsh():
-    subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
+    if os.environ['SHELL'] != '/bin/zsh':
+        subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
 
 
-def _excute_ansible_playbook(personal):
-    if personal:
-        cmd = ['ansible-playbook', '-i', 'hosts', './personal.yml', '--ask-vault-pass']
+def _excute_ansible_playbook(personal, debug, restore):
+    extra_vars = {"homebrew_repositories":
+                  config.get('homebrew', 'repositories').strip().split('\n'),
+                  "homebrew_packages":
+                  config.get('homebrew', 'packages').strip().split('\n'),
+                  "homebrew_cask_packages":
+                  config.get('homebrew_cask', 'packages').strip().split('\n'),
+                  "personal_restore_time_machine": restore}
+    extra_vars_json = json.dumps(extra_vars)
+
+    if debug:
+        cmd = ['ansible-playbook', '-i', 'hosts', './debug.yml',
+               '--extra-vars', extra_vars_json]
+    elif personal:
+        cmd = ['ansible-playbook', '-i', 'hosts', './personal.yml',
+               '--extra-vars', extra_vars_json, '--ask-vault-pass']
     else:
-        cmd = ['ansible-playbook', '-i', 'hosts', './basic.yml']
+        cmd = ['ansible-playbook', '-i', 'hosts', './basic.yml',
+               '--extra-vars', extra_vars_json]
     subprocess.call(cmd, shell=False)
 
 
-def _main(personal):
+def _main(personal, debug, restore):
     _install_CLT()
     _install_homebrew()
     _install_ansible()
     _clone_ansible_roles()
     _change_zsh()
-    _excute_ansible_playbook(personal)
+    _excute_ansible_playbook(personal, debug, restore)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=u'Build environment on OSX')
+    parser.add_argument('-c', '--config',
+                        action='store',
+                        default=config_path,
+                        type=str,
+                        help='Configuration file path (default: %s)' % config_path)
+    parser.add_argument('-d', '--debug',
+                        action='store_true',
+                        default=False,
+                        help='Debug flag (default: Fasle)')
     parser.add_argument('-p', '--personal',
                         action='store_true',
                         default=False,
                         help='Personal playbook execution flag (default: Fasle)')
+    parser.add_argument('-r', '--restore',
+                        action='store_true',
+                        default=False,
+                        help='Restore from the time machine flag (default: Fasle)')
     args = parser.parse_args()
-    _main(args.personal)
+
+    config = ConfigParser.SafeConfigParser()
+    config.read(args.config)
+    _main(args.personal, args.debug, args.restore)

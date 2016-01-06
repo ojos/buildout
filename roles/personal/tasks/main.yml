@@ -49,10 +49,15 @@
     content="{{ persobal_ssh_public_key }}"
     dest="{{ ansible_env.HOME }}/.ssh/id_rsa.pub"
     mode=0644
+- name: Time Machine Drive.
+  stat: >
+    path={{ personal_time_machine_root }}
+  register: is_mount
+  when: personal_restore_time_machine
 - name: Restore from the time machine.
   shell: >
     tmutil restore {{ personal_time_machine_root }}{{ item }} `dirname {{ item }}`
   with_items: personal_time_machine_directories
-  when: (personal_time_machine_directories)
+  when: personal_restore_time_machine and is_mount.stat.exists and personal_time_machine_directories|length > 0 
 
 

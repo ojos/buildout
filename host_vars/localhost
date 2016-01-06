@@ -1,53 +1,6 @@
 ---
-homebrew_repositories:
-  - caskroom/cask
-  - caskroom/versions
-  - peco/peco
+homebrew_repositories: []
 
-homebrew_packages:
-  - direnv
-  - git-flow
-  - jpeg
-  - libtool
-  - openssl
-  - unixodbc
-  - awscli
-  - erlang
-  - go
-  - libpng
-  - libyaml
-  - peco
-  - brew-cask
-  - freetype
-  - imagemagick
-  - libtiff
-  - mysql
-  - xz
+homebrew_packages: []
 
-homebrew_cask_packages:
-  - alfred
-  - dockertoolbox
-  - google-drive
-  - aluxian-messenger
-  - dropbox
-  - google-japanese-ime
-  - sublime-text3
-  - firefox
-  - googleappengine
-  - packer
-  - terraform
-  - vagrant
-  - transmit
-  - coteditor
-  - google-chrome
-  - gyazo
-  - skype
-  - google-cloud-sdk
-  - iterm2
-  - slack
-  - the-unarchiver
-  - kindle
-  - virtualbox
-  - adobe-creative-cloud
-  - airmail-beta
-  - microsoft-office
+homebrew_cask_packages: []
