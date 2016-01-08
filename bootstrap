@@ -91,6 +91,28 @@ def _excute_ansible_playbook(personal, debug, restore):
     subprocess.call(cmd, shell=False)
 
 
+def _excute_ansible_task(personal, debug, restore):
+    from ansible.runner import Runner
+    from ansible.inventory import Inventory
+
+    task = Runner(module_name='debug',
+                  module_args='msg=hogehoge',
+                  inventory=Inventory(["localhost"]),
+                  forks=10)
+    print task.run()
+
+
+def _excute_playbook(personal, debug, restore):
+    from ansible.runner import Runner
+    from ansible.inventory import Inventory
+
+    task = Runner(module_name='debug',
+                  module_args='msg=hogehoge',
+                  inventory=Inventory(["localhost"]),
+                  forks=10)
+    print task.run()
+
+
 def _main(personal, debug, restore):
     _install_CLT()
     _install_homebrew()
@@ -98,6 +120,7 @@ def _main(personal, debug, restore):
     _clone_ansible_roles()
     _change_zsh()
     _excute_ansible_playbook(personal, debug, restore)
+    # _excute_ansible_task(personal, debug, restore)
 
 
 if __name__ == "__main__":
