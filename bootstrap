@@ -12,15 +12,6 @@ import urllib2
 import yaml
 
 config_path = './buildout.cfg'
-playbook_content = r"""
-- hosts: localhost
-  become: no
-  environment:
-    HOMEBREW_CASK_OPTS: "--appdir=/Applications"
-  roles:
-    - homebrew-cask
-"""
-
 
 def _loading(current=None):
     loading_frames = ['|', '/', '-', '\\']
