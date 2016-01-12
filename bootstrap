@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse
-import ConfigParser
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib2
+import yaml
 
 config_path = './buildout.cfg'
-config = None
 
 
 def _loading(current=None):
@@ -23,6 +23,8 @@ def _loading(current=None):
 
 
 def _install_CLT():
+    print 'install command line tools...'
+
     subprocess.Popen(['xcode-select', '--install'],
                      stdin=subprocess.PIPE,
                      stdout=subprocess.PIPE,
@@ -44,14 +46,43 @@ def _install_CLT():
             time.sleep(0.5)
 
 
-def _install_homebrew():
-    res = urllib2.urlopen(config.get('homebrew', 'url'))
+def _install_homebrew(url):
+    print 'install homebrew...'
+
+    res = urllib2.urlopen(url)
     codes = res.read()
     subprocess.call(['ruby', '-e', codes], shell=False)
 
 
+def _change_zsh():
+    print 'change login shell...'
+
+    if os.environ['SHELL'] != '/bin/zsh':
+        subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
+    else:
+        print 'login shell had been changed!!'
+
+
+def _install_pip(url):
+    try:
+        import pip
+    except:
+        print 'install pip...'
+
+        res = urllib2.urlopen(url)
+        codes = res.read()
+        fh = tempfile.NamedTemporaryFile()
+        fh.write(codes)
+        fh.flush()
+        subprocess.call(['sudo', 'python', fh.name], shell=False)
+
+
 def _install_ansible():
-    subprocess.call(['brew', 'install', 'ansible'], shell=False)
+    try:
+        import ansible
+    except:
+        print 'install ansible from pip...'
+        subprocess.call(['sudo', 'pip', 'install', 'ansible'], shell=False)
 
 
 def _clone_ansible_roles():
@@ -64,20 +95,24 @@ def _clone_ansible_roles():
     subprocess.call(['git', 'clone', extra_roles_repository, 'ansible-roles'], shell=False)
 
 
-def _change_zsh():
-    if os.environ['SHELL'] != '/bin/zsh':
-        subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
+def _excute_ansible_playbook(config, personal, debug, restore):
+    import ansible
+    from ansible.playbook import PlayBook
+    from ansible.inventory import Inventory
 
-
-def _excute_ansible_playbook(personal, debug, restore):
-    extra_vars = {"homebrew_repositories":
-                  config.get('homebrew', 'repositories').strip().split('\n'),
-                  "homebrew_packages":
-                  config.get('homebrew', 'packages').strip().split('\n'),
-                  "homebrew_cask_packages":
-                  config.get('homebrew_cask', 'packages').strip().split('\n'),
+    extra_vars = {"homebrew_repositories": config['homebrew']['repositories'],
+                  "homebrew_packages": config['homebrew']['packages'],
+                  "homebrew_cask_packages": config['homebrew_cask']['packages'],
                   "personal_restore_time_machine": restore}
-    extra_vars_json = json.dumps(extra_vars)
+
+    config_fh = tempfile.NamedTemporaryFile()
+    config_fh.write(config['ansible']['config'])
+    config_fh.flush()
+    os.environ["ANSIBLE_CONFIG"] = config_fh.name
+
+    playbook_fh = tempfile.NamedTemporaryFile()
+    playbook_fh.write(playbook_content)
+    playbook_fh.flush()
 
     if debug:
         cmd = ['ansible-playbook', '-i', 'hosts', './debug.yml',
@@ -91,36 +126,14 @@ def _excute_ansible_playbook(personal, debug, restore):
     subprocess.call(cmd, shell=False)
 
 
-def _excute_ansible_task(personal, debug, restore):
-    from ansible.runner import Runner
-    from ansible.inventory import Inventory
-
-    task = Runner(module_name='debug',
-                  module_args='msg=hogehoge',
-                  inventory=Inventory(["localhost"]),
-                  forks=10)
-    print task.run()
-
-
-def _excute_playbook(personal, debug, restore):
-    from ansible.runner import Runner
-    from ansible.inventory import Inventory
-
-    task = Runner(module_name='debug',
-                  module_args='msg=hogehoge',
-                  inventory=Inventory(["localhost"]),
-                  forks=10)
-    print task.run()
-
-
-def _main(personal, debug, restore):
-    _install_CLT()
-    _install_homebrew()
-    _install_ansible()
-    _clone_ansible_roles()
-    _change_zsh()
-    _excute_ansible_playbook(personal, debug, restore)
-    # _excute_ansible_task(personal, debug, restore)
+def _main(config, personal, debug, restore):
+    # _install_CLT()
+    # _install_homebrew(config['homebrew']['url'])
+    # _change_zsh()
+    # _install_pip(config['pip']['url'])
+    # _install_ansible()
+    # _clone_ansible_roles()
+    _excute_ansible_playbook(config, personal, debug, restore)
 
 
 if __name__ == "__main__":
@@ -144,6 +157,7 @@ if __name__ == "__main__":
                         help='Restore from the time machine flag (default: Fasle)')
     args = parser.parse_args()
 
-    config = ConfigParser.SafeConfigParser()
-    config.read(args.config)
-    _main(args.personal, args.debug, args.restore)
+    with open(args.config, "r") as file:
+        config = yaml.load(file)
+
+    _main(config, args.personal, args.debug, args.restore)
