@@ -84,13 +84,16 @@ def _install_ansible():
         subprocess.call(['sudo', 'pip', 'install', 'ansible'], shell=False)
 
 
-def _clone_ansible_roles(roles_repository):
-    extra_role_dir = './roles'
-    if os.path.exists(extra_role_dir):
-        print 'remove extra roles dir...'
-        shutil.rmtree('./roles')
+def _clean_ansible_roles(roles_dir):
+    if os.path.exists(roles_dir):
+        print 'remove roles dir...'
+        shutil.rmtree(roles_dir)
 
-    subprocess.call(['git', 'clone', roles_repository, 'roles'], shell=False)
+
+def _clone_ansible_roles(roles_repository, roles_dir):
+    _clean_ansible_roles(roles_dir)
+
+    subprocess.call(['git', 'clone', roles_repository, roles_dir], shell=False)
 
 
 def _excute_ansible_playbook(config, passward, debug, restore):
@@ -141,7 +144,7 @@ def _main(config, passward, debug, restore):
     _change_zsh()
     _install_pip(config['pip']['url'])
     _install_ansible()
-    _clone_ansible_roles(config['ansible']['roles_repository'])
+    _clone_ansible_roles(config['ansible']['roles_repository'], './roles')
     _excute_ansible_playbook(config, passward, debug, restore)
 
 
