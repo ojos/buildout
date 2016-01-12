@@ -144,7 +144,7 @@ def _main(config, passward, debug, restore):
     _change_zsh()
     _install_pip(config['pip']['url'])
     _install_ansible()
-    _clone_ansible_roles(config['ansible']['roles_repository'], './roles')
+    _clone_ansible_roles(config['ansible']['roles_repository'], './.roles')
     _excute_ansible_playbook(config, passward, debug, restore)
 
 
