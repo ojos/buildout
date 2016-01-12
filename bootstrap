@@ -12,6 +12,14 @@ import urllib2
 import yaml
 
 config_path = './buildout.cfg'
+playbook_content = r"""
+- hosts: localhost
+  become: no
+  environment:
+    HOMEBREW_CASK_OPTS: "--appdir=/Applications"
+  roles:
+    - homebrew-cask
+"""
 
 
 def _loading(current=None):
@@ -85,58 +93,68 @@ def _install_ansible():
         subprocess.call(['sudo', 'pip', 'install', 'ansible'], shell=False)
 
 
-def _clone_ansible_roles():
-    extra_role_dir = './ansible-roles'
+def _clone_ansible_roles(roles_repository):
+    extra_role_dir = './roles'
     if os.path.exists(extra_role_dir):
         print 'remove extra roles dir...'
-        shutil.rmtree('./ansible-roles')
+        shutil.rmtree('./roles')
 
-    extra_roles_repository = config.get('ansible', 'extra_roles_repository')
-    subprocess.call(['git', 'clone', extra_roles_repository, 'ansible-roles'], shell=False)
+    subprocess.call(['git', 'clone', roles_repository, 'roles'], shell=False)
 
 
-def _excute_ansible_playbook(config, personal, debug, restore):
-    import ansible
-    from ansible.playbook import PlayBook
-    from ansible.inventory import Inventory
-
-    extra_vars = {"homebrew_repositories": config['homebrew']['repositories'],
-                  "homebrew_packages": config['homebrew']['packages'],
-                  "homebrew_cask_packages": config['homebrew_cask']['packages'],
-                  "personal_restore_time_machine": restore}
-
+def _excute_ansible_playbook(config, passward, debug, restore):
     config_fh = tempfile.NamedTemporaryFile()
     config_fh.write(config['ansible']['config'])
     config_fh.flush()
     os.environ["ANSIBLE_CONFIG"] = config_fh.name
 
-    playbook_fh = tempfile.NamedTemporaryFile()
-    playbook_fh.write(playbook_content)
-    playbook_fh.flush()
+    import ansible
+    from ansible.inventory import Inventory
+    from ansible.playbook import PlayBook
 
+    stats = ansible.callbacks.AggregateStats()
+    kwargs = {'stats': stats,
+              'callbacks': ansible.callbacks.PlaybookCallbacks(),
+              'runner_callbacks': ansible.callbacks.PlaybookRunnerCallbacks(stats),
+              'inventory': ansible.inventory.Inventory(['localhost']),
+              'extra_vars': {'homebrew_repositories': config['homebrew']['repositories'],
+                             'homebrew_packages': config['homebrew']['packages'],
+                             'homebrew_cask_packages': config['homebrew_cask']['packages'],
+                             'osx_restore_time_machine': restore,
+                             'ansible_connection': 'local'}}
+
+    playbook_yml = config['ansible']['playbook_template']
     if debug:
-        cmd = ['ansible-playbook', '-i', 'hosts', './debug.yml',
-               '--extra-vars', extra_vars_json]
-    elif personal:
-        cmd = ['ansible-playbook', '-i', 'hosts', './personal.yml',
-               '--extra-vars', extra_vars_json, '--ask-vault-pass']
+        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['debug']
+    elif passward:
+        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['advance']
+        kwargs['vault_password'] = passward
     else:
-        cmd = ['ansible-playbook', '-i', 'hosts', './basic.yml',
-               '--extra-vars', extra_vars_json]
-    subprocess.call(cmd, shell=False)
+        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['basic']
+
+    playbook_fh = tempfile.NamedTemporaryFile()
+    playbook_fh.write(yaml.dump(playbook_yml))
+    playbook_fh.flush()
+    kwargs['playbook'] = playbook_fh.name
+    playbook = ansible.playbook.PlayBook(**kwargs)
+
+    try:
+        playbook.run()
+    except Exception as e:
+        print 'Ansible Error: %s' % e.message
 
 
-def _main(config, personal, debug, restore):
-    # _install_CLT()
-    # _install_homebrew(config['homebrew']['url'])
-    # _change_zsh()
-    # _install_pip(config['pip']['url'])
-    # _install_ansible()
-    # _clone_ansible_roles()
-    _excute_ansible_playbook(config, personal, debug, restore)
+def _main(config, passward, debug, restore):
+    _install_CLT()
+    _install_homebrew(config['homebrew']['url'])
+    _change_zsh()
+    _install_pip(config['pip']['url'])
+    _install_ansible()
+    _clone_ansible_roles(config['ansible']['roles_repository'])
+    _excute_ansible_playbook(config, passward, debug, restore)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=u'Build environment on OSX')
     parser.add_argument('-c', '--config',
                         action='store',
@@ -147,9 +165,8 @@ if __name__ == "__main__":
                         action='store_true',
                         default=False,
                         help='Debug flag (default: Fasle)')
-    parser.add_argument('-p', '--personal',
-                        action='store_true',
-                        default=False,
+    parser.add_argument('-p', '--passward',
+                        action='store',
                         help='Personal playbook execution flag (default: Fasle)')
     parser.add_argument('-r', '--restore',
                         action='store_true',
@@ -157,7 +174,7 @@ if __name__ == "__main__":
                         help='Restore from the time machine flag (default: Fasle)')
     args = parser.parse_args()
 
-    with open(args.config, "r") as file:
+    with open(args.config, 'r') as file:
         config = yaml.load(file)
 
-    _main(config, args.personal, args.debug, args.restore)
+    _main(config, args.passward, args.debug, args.restore)

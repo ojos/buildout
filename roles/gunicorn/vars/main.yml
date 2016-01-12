@@ -1,0 +1,2 @@
+---
+  gunicorn_binary: "{{ xbuild_python_install_dir_prefix }}/bin/gunicorn"
