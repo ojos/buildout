@@ -1,7 +1,5 @@
 ---
 - hosts: localhost
   become: no
-  environment:
-    HOMEBREW_CASK_OPTS: "--appdir=/Applications"
   roles:
     - personal

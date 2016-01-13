@@ -1,8 +1,6 @@
 ---
 - hosts: localhost
   become: no
-  environment:
-    HOMEBREW_CASK_OPTS: "--appdir=/Applications"
   roles:
-    - homebrew-cask
+    - homebrew_cask
     - dotfiles
