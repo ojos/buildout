@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import StringIO
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,15 @@ import time
 import urllib2
 import yaml
 
+try:
+    import configparser
+except:
+    import ConfigParser as configparser
+
 config_path = './buildout.cfg'
+homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
+pip_url = 'https://bootstrap.pypa.io/get-pip.py'
+
 
 def _loading(current=None):
     loading_frames = ['|', '/', '-', '\\']
@@ -45,10 +54,10 @@ def _install_CLT():
             time.sleep(0.5)
 
 
-def _install_homebrew(url):
+def _install_homebrew():
     print 'install homebrew...'
 
-    res = urllib2.urlopen(url)
+    res = urllib2.urlopen(homebrew_url)
     codes = res.read()
     subprocess.call(['ruby', '-e', codes], shell=False)
 
@@ -62,13 +71,13 @@ def _change_zsh():
         print 'login shell had been changed!!'
 
 
-def _install_pip(url):
+def _install_pip():
     try:
         import pip
     except:
         print 'install pip...'
 
-        res = urllib2.urlopen(url)
+        res = urllib2.urlopen(pip_url)
         codes = res.read()
         fh = tempfile.NamedTemporaryFile()
         fh.write(codes)
@@ -96,56 +105,84 @@ def _clone_ansible_roles(roles_repository, roles_dir):
     subprocess.call(['git', 'clone', roles_repository, roles_dir], shell=False)
 
 
-def _excute_ansible_playbook(config, passward, debug, restore):
+def _generate_ansible_config(config):
     config_fh = tempfile.NamedTemporaryFile()
     config_fh.write(config['ansible']['config'])
     config_fh.flush()
-    os.environ["ANSIBLE_CONFIG"] = config_fh.name
 
+    conf = configparser.SafeConfigParser()
+    conf.read(config_fh.name)
+
+    if conf.has_option('defaults', 'roles_path'):
+        roles = conf.get('defaults', 'roles_path').split(':')
+    else:
+        roles = []
+    roles.extend([role['directory'] for role in config['ansible']['roles']])
+    conf.set('defaults', 'roles_path', ':'.join(roles))
+
+    config_fh.seek(0)
+    conf.write(config_fh)
+    config_fh.flush()
+
+    return config_fh.name
+
+
+def _generate_ansible_extra_vars(config):
+    extra_vars = {}
+    for pk, pv in config.items():
+        if pk != 'ansible':
+            for ck, cv in pv.items():
+                extra_vars['%s_%s' % (pk, ck)] = cv
+    print extra_vars
+
+
+def _generate_ansible_playbook(config):
+    pass
+
+
+def _excute_ansible_playbook(config, passward):
+    os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
     import ansible
-    from ansible.inventory import Inventory
-    from ansible.playbook import PlayBook
+    import ansible.inventory
+    import ansible.playbook
 
     stats = ansible.callbacks.AggregateStats()
     kwargs = {'stats': stats,
-              'callbacks': ansible.callbacks.PlaybookCallbacks(),
-              'runner_callbacks': ansible.callbacks.PlaybookRunnerCallbacks(stats),
+              # 'callbacks': ansible.callbacks.PlaybookCallbacks(),
+              # 'runner_callbacks': ansible.callbacks.PlaybookRunnerCallbacks(stats),
               'inventory': ansible.inventory.Inventory(['localhost']),
-              'extra_vars': {'homebrew_repositories': config['homebrew']['repositories'],
-                             'homebrew_packages': config['homebrew']['packages'],
-                             'homebrew_cask_packages': config['homebrew_cask']['packages'],
-                             'osx_restore_time_machine': restore,
-                             'ansible_connection': 'local'}}
+              'extra_vars': _generate_ansible_extra_vars(config)}
 
-    playbook_yml = config['ansible']['playbook_template']
-    if debug:
-        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['debug']
-    elif passward:
-        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['advance']
-        kwargs['vault_password'] = passward
-    else:
-        playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['basic']
+    print kwargs
 
-    playbook_fh = tempfile.NamedTemporaryFile()
-    playbook_fh.write(yaml.dump(playbook_yml))
-    playbook_fh.flush()
-    kwargs['playbook'] = playbook_fh.name
-    playbook = ansible.playbook.PlayBook(**kwargs)
+    # playbook_yml = config['ansible']['playbook_template']
+    # if passward:
+    #     playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['advance']
+    #     kwargs['vault_password'] = passward
+    # else:
+    #     playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['basic']
 
-    try:
-        playbook.run()
-    except Exception as e:
-        print 'Ansible Error: %s' % e.message
+    # playbook_fh = tempfile.NamedTemporaryFile()
+    # playbook_fh.write(yaml.dump(playbook_yml))
+    # playbook_fh.flush()
+    # kwargs['playbook'] = playbook_fh.name
+    # playbook = ansible.playbook.PlayBook(**kwargs)
+
+    # try:
+    #     playbook.run()
+    # except Exception as e:
+    #     print 'Ansible Error: %s' % e.message
 
 
-def _main(config, passward, debug, restore):
-    _install_CLT()
-    _install_homebrew(config['homebrew']['url'])
-    _change_zsh()
-    _install_pip(config['pip']['url'])
-    _install_ansible()
-    _clone_ansible_roles(config['ansible']['roles_repository'], './.roles')
-    _excute_ansible_playbook(config, passward, debug, restore)
+def _main(config, passward):
+    # _install_CLT()
+    # _install_homebrew()
+    # _change_zsh()
+    # _install_pip()
+    # _install_ansible()
+    # for role in config['ansible']['roles']:
+    #     _clone_ansible_roles(role['repository'], role['directory'])
+    _excute_ansible_playbook(config, passward)
 
 
 if __name__ == '__main__':
@@ -155,20 +192,12 @@ if __name__ == '__main__':
                         default=config_path,
                         type=str,
                         help='Configuration file path (default: %s)' % config_path)
-    parser.add_argument('-d', '--debug',
-                        action='store_true',
-                        default=False,
-                        help='Debug flag (default: Fasle)')
     parser.add_argument('-p', '--passward',
                         action='store',
                         help='Personal playbook execution flag (default: Fasle)')
-    parser.add_argument('-r', '--restore',
-                        action='store_true',
-                        default=False,
-                        help='Restore from the time machine flag (default: Fasle)')
     args = parser.parse_args()
 
     with open(args.config, 'r') as file:
         config = yaml.load(file)
 
-    _main(config, args.passward, args.debug, args.restore)
+    _main(config, args.passward)
