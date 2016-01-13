@@ -1,4 +1,4 @@
-/old.cfg
+/.ansible.cfg
 /ansible-roles
 /.roles
 /.retry

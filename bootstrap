@@ -20,6 +20,7 @@ except:
 config_path = './buildout.cfg'
 homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
 pip_url = 'https://bootstrap.pypa.io/get-pip.py'
+ansible_config = './.ansible.cfg'
 
 
 def _loading(current=None):
@@ -106,82 +107,78 @@ def _clone_ansible_roles(roles_repository, roles_dir):
 
 
 def _generate_ansible_config(config):
-    config_fh = tempfile.NamedTemporaryFile()
-    config_fh.write(config['ansible']['config'])
-    config_fh.flush()
+    fp = tempfile.NamedTemporaryFile()
+    fp.write(config['ansible']['config'])
+    fp.flush()
 
     conf = configparser.SafeConfigParser()
-    conf.read(config_fh.name)
+    conf.read(fp.name)
 
     if conf.has_option('defaults', 'roles_path'):
         roles = conf.get('defaults', 'roles_path').split(':')
     else:
         roles = []
-    roles.extend([role['directory'] for role in config['ansible']['roles']])
+    roles.extend([role['directory'] for role in config['ansible']['roles_path']])
     conf.set('defaults', 'roles_path', ':'.join(roles))
 
-    config_fh.seek(0)
-    conf.write(config_fh)
-    config_fh.flush()
+    with open(ansible_config, "w") as fh:
+        conf.write(fh)
 
-    return config_fh.name
+    return ansible_config
 
 
-def _generate_ansible_extra_vars(config):
+def _generate_ansible_vars(config):
     extra_vars = {}
     for pk, pv in config.items():
         if pk != 'ansible':
             for ck, cv in pv.items():
                 extra_vars['%s_%s' % (pk, ck)] = cv
-    print extra_vars
+    return extra_vars
 
 
 def _generate_ansible_playbook(config):
-    pass
+    playbook = config['ansible']['playbook']
+    playbook[0]['vars'] = _generate_ansible_vars(config)
+    playbook[0]['roles'] = config['ansible']['roles']
+
+    print playbook
+
+    return yaml.dump(playbook)
 
 
 def _excute_ansible_playbook(config, passward):
     os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
-    import ansible
-    import ansible.inventory
-    import ansible.playbook
 
-    stats = ansible.callbacks.AggregateStats()
-    kwargs = {'stats': stats,
-              # 'callbacks': ansible.callbacks.PlaybookCallbacks(),
-              # 'runner_callbacks': ansible.callbacks.PlaybookRunnerCallbacks(stats),
-              'inventory': ansible.inventory.Inventory(['localhost']),
-              'extra_vars': _generate_ansible_extra_vars(config)}
+    inventory = tempfile.NamedTemporaryFile()
+    inventory.write(config['ansible']['inventory'])
+    inventory.flush()
 
-    print kwargs
+    playbook = tempfile.NamedTemporaryFile()
+    playbook.write(_generate_ansible_playbook(config))
+    playbook.flush()
 
-    # playbook_yml = config['ansible']['playbook_template']
-    # if passward:
-    #     playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['advance']
-    #     kwargs['vault_password'] = passward
-    # else:
-    #     playbook_yml[0]['roles'] = config['ansible']['playbook_roles']['basic']
+    args = ['ansible-playbook', '-i', inventory.name]
 
-    # playbook_fh = tempfile.NamedTemporaryFile()
-    # playbook_fh.write(yaml.dump(playbook_yml))
-    # playbook_fh.flush()
-    # kwargs['playbook'] = playbook_fh.name
-    # playbook = ansible.playbook.PlayBook(**kwargs)
-
+    # from ansible.cli.playbook import PlaybookCLI
     # try:
-    #     playbook.run()
-    # except Exception as e:
-    #     print 'Ansible Error: %s' % e.message
+    #     args.extend([playbook.name])
+    #     cli = PlaybookCLI(args)
+    #     cli.parse()
+    #     cli.run()
+    # except:
+    #     args.extend(['--ask-vault-pass', playbook.name])
+    #     cli = PlaybookCLI(args)
+    #     cli.parse()
+    #     cli.run()
 
 
 def _main(config, passward):
-    # _install_CLT()
-    # _install_homebrew()
-    # _change_zsh()
-    # _install_pip()
-    # _install_ansible()
-    # for role in config['ansible']['roles']:
-    #     _clone_ansible_roles(role['repository'], role['directory'])
+    _install_CLT()
+    _install_homebrew()
+    _install_pip()
+    _install_ansible()
+    for role in config['ansible']['roles_path']:
+        _clone_ansible_roles(role['repository'], role['directory'])
     _excute_ansible_playbook(config, passward)
 
 
