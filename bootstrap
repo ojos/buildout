@@ -17,7 +17,7 @@ try:
 except:
     import ConfigParser as configparser
 
-config_path = './buildout.cfg'
+config_path = './osx/general.cfg'
 homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
 pip_url = 'https://bootstrap.pypa.io/get-pip.py'
 ansible_config = './.ansible.cfg'
