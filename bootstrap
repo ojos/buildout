@@ -141,12 +141,10 @@ def _generate_ansible_playbook(config):
     playbook[0]['vars'] = _generate_ansible_vars(config)
     playbook[0]['roles'] = config['ansible']['roles']
 
-    print playbook
-
     return yaml.dump(playbook)
 
 
-def _excute_ansible_playbook(config, passward):
+def _excute_ansible_playbook(config):
     os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
 
     inventory = tempfile.NamedTemporaryFile()
@@ -158,28 +156,27 @@ def _excute_ansible_playbook(config, passward):
     playbook.flush()
 
     args = ['ansible-playbook', '-i', inventory.name]
+    if 'options' in config['ansible']:
+        args.extend(config['ansible']['options'])
+    args.append(playbook.name)
 
-    # from ansible.cli.playbook import PlaybookCLI
-    # try:
-    #     args.extend([playbook.name])
-    #     cli = PlaybookCLI(args)
-    #     cli.parse()
-    #     cli.run()
-    # except:
-    #     args.extend(['--ask-vault-pass', playbook.name])
-    #     cli = PlaybookCLI(args)
-    #     cli.parse()
-    #     cli.run()
+    from ansible.cli.playbook import PlaybookCLI
+    try:
+        cli = PlaybookCLI(args)
+        cli.parse()
+        sys.exit(cli.run())
+    except Exception as exception:
+        print exception.message
 
 
-def _main(config, passward):
+def _main(config):
     _install_CLT()
     _install_homebrew()
     _install_pip()
     _install_ansible()
     for role in config['ansible']['roles_path']:
         _clone_ansible_roles(role['repository'], role['directory'])
-    _excute_ansible_playbook(config, passward)
+    _excute_ansible_playbook(config)
 
 
 if __name__ == '__main__':
@@ -189,12 +186,9 @@ if __name__ == '__main__':
                         default=config_path,
                         type=str,
                         help='Configuration file path (default: %s)' % config_path)
-    parser.add_argument('-p', '--passward',
-                        action='store',
-                        help='Personal playbook execution flag (default: Fasle)')
     args = parser.parse_args()
 
     with open(args.config, 'r') as file:
         config = yaml.load(file)
 
-    _main(config, args.passward)
+    _main(config)
