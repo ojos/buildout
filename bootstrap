@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import division
+
 import argparse
 import json
 import os
 import shutil
-import StringIO
 import subprocess
 import sys
 import tempfile
 import time
 import urllib2
-import yaml
 
 try:
     import configparser
@@ -20,7 +20,6 @@ except:
 config_path = './osx/general.cfg'
 homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
 pip_url = 'https://bootstrap.pypa.io/get-pip.py'
-ansible_config = './.ansible.cfg'
 
 
 def _loading(current=None):
@@ -32,7 +31,7 @@ def _loading(current=None):
 
 
 def _install_CLT():
-    print 'install command line tools...'
+    print('install command line tools...')
 
     subprocess.Popen(['xcode-select', '--install'],
                      stdin=subprocess.PIPE,
@@ -48,37 +47,37 @@ def _install_CLT():
                              stderr=subprocess.PIPE,
                              shell=False)
         if p.wait() == 0:
-            print 'command line tools had been installed!!'
+            print('command line tools had been installed!!')
             break
         else:
             progress = _loading(progress)
             time.sleep(0.5)
 
 
-def _install_homebrew():
-    print 'install homebrew...'
+def _install_homebrew(url):
+    print('install homebrew...')
 
-    res = urllib2.urlopen(homebrew_url)
+    res = urllib2.urlopen(url)
     codes = res.read()
     subprocess.call(['ruby', '-e', codes], shell=False)
 
 
 def _change_zsh():
-    print 'change login shell...'
+    print('change login shell...')
 
     if os.environ['SHELL'] != '/bin/zsh':
         subprocess.call(['chsh', '-s', '/bin/zsh'], shell=False)
     else:
-        print 'login shell had been changed!!'
+        print('login shell had been changed!!')
 
 
-def _install_pip():
+def _install_pip(url):
     try:
         import pip
     except:
-        print 'install pip...'
+        print('install pip...')
 
-        res = urllib2.urlopen(pip_url)
+        res = urllib2.urlopen(url)
         codes = res.read()
         fh = tempfile.NamedTemporaryFile()
         fh.write(codes)
@@ -90,13 +89,13 @@ def _install_ansible():
     try:
         import ansible
     except:
-        print 'install ansible from pip...'
+        print('install ansible from pip...')
         subprocess.call(['sudo', 'pip', 'install', 'ansible'], shell=False)
 
 
 def _clean_ansible_roles(roles_dir):
     if os.path.exists(roles_dir):
-        print 'remove roles dir...'
+        print('remove roles dir...')
         shutil.rmtree(roles_dir)
 
 
@@ -108,7 +107,7 @@ def _clone_ansible_roles(roles_repository, roles_dir):
 
 def _generate_ansible_config(config):
     fp = tempfile.NamedTemporaryFile()
-    fp.write(config['ansible']['config'])
+    fp.write(config['ansible']['config']['ini'])
     fp.flush()
 
     conf = configparser.SafeConfigParser()
@@ -118,33 +117,24 @@ def _generate_ansible_config(config):
         roles = conf.get('defaults', 'roles_path').split(':')
     else:
         roles = []
-    roles.extend([role['directory'] for role in config['ansible']['roles_path']])
+    roles.extend([role['directory'] for role in config['ansible']['config']['roles_path']])
     conf.set('defaults', 'roles_path', ':'.join(roles))
 
-    with open(ansible_config, "w") as fh:
+    with open(config['ansible']['config']['path'], "w") as fh:
         conf.write(fh)
 
-    return ansible_config
+    return config['ansible']['config']['path']
 
 
-def _generate_ansible_vars(config):
-    extra_vars = {}
-    for pk, pv in config.items():
-        if pk != 'ansible':
-            for ck, cv in pv.items():
-                extra_vars['%s_%s' % (pk, ck)] = cv
-    return extra_vars
+def _excute_ansible_playbook(config_path):
+    import yaml
 
+    with open(config_path, 'r') as file:
+        config = yaml.load(file)
 
-def _generate_ansible_playbook(config):
-    playbook = config['ansible']['playbook']
-    playbook[0]['vars'] = _generate_ansible_vars(config)
-    playbook[0]['roles'] = config['ansible']['roles']
+    for role in config['ansible']['config']['roles_path']:
+        _clone_ansible_roles(role['repository'], role['directory'])
 
-    return yaml.dump(playbook)
-
-
-def _excute_ansible_playbook(config):
     os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
 
     inventory = tempfile.NamedTemporaryFile()
@@ -152,7 +142,7 @@ def _excute_ansible_playbook(config):
     inventory.flush()
 
     playbook = tempfile.NamedTemporaryFile()
-    playbook.write(_generate_ansible_playbook(config))
+    playbook.write(yaml.dump(config['ansible']['playbook']))
     playbook.flush()
 
     args = ['ansible-playbook', '-i', inventory.name]
@@ -166,17 +156,15 @@ def _excute_ansible_playbook(config):
         cli.parse()
         sys.exit(cli.run())
     except Exception as exception:
-        print exception.message
+        print(exception.message)
 
 
-def _main(config):
+def _main(config_path):
     _install_CLT()
-    _install_homebrew()
-    _install_pip()
+    _install_homebrew(homebrew_url)
+    _install_pip(pip_url)
     _install_ansible()
-    for role in config['ansible']['roles_path']:
-        _clone_ansible_roles(role['repository'], role['directory'])
-    _excute_ansible_playbook(config)
+    _excute_ansible_playbook(config_path)
 
 
 if __name__ == '__main__':
@@ -187,8 +175,4 @@ if __name__ == '__main__':
                         type=str,
                         help='Configuration file path (default: %s)' % config_path)
     args = parser.parse_args()
-
-    with open(args.config, 'r') as file:
-        config = yaml.load(file)
-
-    _main(config)
+    _main(args.config)
