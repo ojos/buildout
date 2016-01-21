@@ -126,7 +126,7 @@ def _generate_ansible_config(config):
     return config['ansible']['config']['path']
 
 
-def _excute_ansible_playbook(config_path):
+def _excute_ansible_playbook(config_path, playbook_path):
     import yaml
 
     with open(config_path, 'r') as file:
@@ -141,14 +141,16 @@ def _excute_ansible_playbook(config_path):
     inventory.write(config['ansible']['inventory'])
     inventory.flush()
 
-    playbook = tempfile.NamedTemporaryFile()
-    playbook.write(yaml.dump(config['ansible']['playbook']))
-    playbook.flush()
+    if playbook_path is None:
+        playbook = tempfile.NamedTemporaryFile()
+        playbook.write(yaml.dump(config['ansible']['playbook']))
+        playbook.flush()
+        playbook_path = playbook.name
 
     args = ['ansible-playbook', '-i', inventory.name]
     if 'options' in config['ansible']:
         args.extend(config['ansible']['options'])
-    args.append(playbook.name)
+    args.append(playbook_path)
 
     from ansible.cli.playbook import PlaybookCLI
     try:
@@ -159,12 +161,12 @@ def _excute_ansible_playbook(config_path):
         print(exception.message)
 
 
-def _main(config_path):
+def _main(config_path, playbook_path):
     _install_CLT()
     _install_homebrew(homebrew_url)
     _install_pip(pip_url)
     _install_ansible()
-    _excute_ansible_playbook(config_path)
+    _excute_ansible_playbook(config_path, playbook_path)
 
 
 if __name__ == '__main__':
@@ -174,5 +176,10 @@ if __name__ == '__main__':
                         default=config_path,
                         type=str,
                         help='Configuration file path (default: %s)' % config_path)
+    parser.add_argument('-p', '--playbook',
+                        action='store',
+                        default=None,
+                        type=str,
+                        help='Override the playbook of the configuration file')
     args = parser.parse_args()
-    _main(args.config)
+    _main(args.config, args.playbook)
