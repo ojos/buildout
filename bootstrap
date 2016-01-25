@@ -10,12 +10,17 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib2
 
 try:
     import configparser
 except:
     import ConfigParser as configparser
+
+try:
+    from urllib import request as urllib2
+except:
+    import urllib2
+
 
 config_path = './osx/general.yml'
 homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
