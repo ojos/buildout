@@ -1,3 +1,4 @@
+.ansible.cfg
 /.roles
 /.retry
 /my_project
