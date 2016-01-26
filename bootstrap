@@ -112,7 +112,7 @@ def _clone_ansible_roles(roles_repository, roles_dir):
 
 def _generate_ansible_config(config):
     fp = tempfile.NamedTemporaryFile()
-    fp.write(config['ansible']['config']['ini'])
+    fp.write(config['ansible']['config']['ini'].encode('utf-8'))
     fp.flush()
 
     conf = configparser.SafeConfigParser()
@@ -143,12 +143,12 @@ def _excute_ansible_playbook(config_path, playbook_path):
     os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
 
     inventory = tempfile.NamedTemporaryFile()
-    inventory.write(config['ansible']['inventory'])
+    inventory.write(config['ansible']['inventory'].encode('utf-8'))
     inventory.flush()
 
     if playbook_path is None:
         playbook = tempfile.NamedTemporaryFile()
-        playbook.write(yaml.dump(config['ansible']['playbook']))
+        playbook.write(yaml.dump(config['ansible']['playbook']).encode('utf-8'))
         playbook.flush()
         playbook_path = playbook.name
 
