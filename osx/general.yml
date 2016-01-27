@@ -1,13 +1,13 @@
 ---
 ansible:
     config:
-        path: ./.ansible.cfg
+        path: ./ansible.cfg
         roles_path:
           - repository: https://github.com/ojos/ansible-roles.git
-            directory: ./.roles
+            directory: ./roles
         ini: |
             [defaults]
-            retry_files_save_path = ./.retry/
+            retry_files_enabled = False
     inventory: |
         localhost ansible_connection=local
     playbook:
