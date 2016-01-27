@@ -13,7 +13,7 @@ ansible:
     inventory: |
         localhost ansible_connection=local
     playbook:
-      - hosts: localhost
+      - hosts: all
         become: no
         vars:
             project_directory: "{{ ansible_user_dir }}/Workspace/sandbox"
