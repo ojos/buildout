@@ -154,7 +154,8 @@ def _excute_ansible_playbook(config_path, playbook_path):
 
     args = ['ansible-playbook', '-i', inventory.name]
     if 'options' in config['ansible']:
-        args.extend(config['ansible']['options'])
+        for option in config['ansible']['options']:
+            args.extend(option.split(' '))
     args.append(playbook_path)
 
     from ansible.cli.playbook import PlaybookCLI
