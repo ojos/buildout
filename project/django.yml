@@ -34,3 +34,4 @@ ansible:
           - packer
           - terraform
           - django
+          - gunicorn
