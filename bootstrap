@@ -22,9 +22,15 @@ except:
     import urllib2
 
 
-config_path = './osx/general.yml'
 homebrew_url = 'https://raw.githubusercontent.com/Homebrew/install/master/install'
 pip_url = 'https://bootstrap.pypa.io/get-pip.py'
+default_inventory = r'localhost ansible_connection=local'
+default_playbook = r"""
+- hosts: all
+  tasks:
+    - name: debug
+      debug:
+"""
 
 
 def _loading(current=None):
@@ -131,30 +137,47 @@ def _generate_ansible_config(config):
     return config['ansible']['config']['path']
 
 
-def _excute_ansible_playbook(config_path, playbook_path):
+def _excute_ansible_playbook(config_path, inventories, options, playbook_path):
     import yaml
 
-    with open(config_path, 'r') as file:
-        config = yaml.load(file)
+    try:
+        with open(config_path, 'r') as file:
+            config = yaml.load(file)
+    except:
+        config = None
 
-    for role in config['ansible']['config']['roles_path']:
-        _clone_ansible_roles(role['repository'], role['directory'])
-
-    os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
+    if config is not None:
+        for role in config['ansible']['config']['roles_path']:
+            _clone_ansible_roles(role['repository'], role['directory'])
+        os.environ["ANSIBLE_CONFIG"] = _generate_ansible_config(config)
 
     inventory = tempfile.NamedTemporaryFile()
-    inventory.write(config['ansible']['inventory'].encode('utf-8'))
+    if inventories is None:
+        if config is None:
+            inv = default_inventory
+        else:
+            inv = config['ansible']['inventory']
+    else:
+        inv = '\n'.join(inventories)
+    inventory.write(inv.encode('utf-8'))
     inventory.flush()
 
     if playbook_path is None:
         playbook = tempfile.NamedTemporaryFile()
-        playbook.write(yaml.dump(config['ansible']['playbook']).encode('utf-8'))
+        if config is None:
+            pb = default_playbook
+        else:
+            pb = yaml.dump(config['ansible']['playbook'])
+        playbook.write(pb.encode('utf-8'))
         playbook.flush()
         playbook_path = playbook.name
 
     args = ['ansible-playbook', '-i', inventory.name]
-    if 'options' in config['ansible']:
+    if config is not None and 'options' in config['ansible']:
         for option in config['ansible']['options']:
+            args.extend(option.split(' '))
+    if options is not None:
+        for option in json.loads(options):
             args.extend(option.split(' '))
     args.append(playbook_path)
 
@@ -167,25 +190,36 @@ def _excute_ansible_playbook(config_path, playbook_path):
         print(exception.message)
 
 
-def _main(config_path, playbook_path):
+def _main(config_path, inventories, options, playbook_path):
     _install_CLT()
     _install_homebrew(homebrew_url)
     _install_pip(pip_url)
     _install_ansible()
-    _excute_ansible_playbook(config_path, playbook_path)
+    _excute_ansible_playbook(config_path, inventories, options, playbook_path)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=u'Build environment on OSX')
     parser.add_argument('-c', '--config',
                         action='store',
-                        default=config_path,
+                        default=None,
                         type=str,
-                        help='Configuration file path (default: %s)' % config_path)
+                        help='Configuration file path')
+    parser.add_argument('-i', '--inventory',
+                        action='store',
+                        nargs='+',
+                        default=None,
+                        type=str,
+                        help='Override the inventory of the configuration file')
+    parser.add_argument('-o', '--options',
+                        action='store',
+                        default=None,
+                        type=str,
+                        help='Override the options of the configuration file(json array)')
     parser.add_argument('-p', '--playbook',
                         action='store',
                         default=None,
                         type=str,
                         help='Override the playbook of the configuration file')
     args = parser.parse_args()
-    _main(args.config, args.playbook)
+    _main(args.config, args.inventory, args.options, args.playbook)
