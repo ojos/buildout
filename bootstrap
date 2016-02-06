@@ -113,7 +113,7 @@ def _clean_ansible_roles(roles_dir):
 def _clone_ansible_roles(roles_repository, roles_dir):
     _clean_ansible_roles(roles_dir)
 
-    subprocess.call(['git', 'clone', roles_repository, roles_dir], shell=False)
+    subprocess.call(['git', 'clone', '--recursive', roles_repository, roles_dir], shell=False)
 
 
 def _generate_ansible_config(config):
