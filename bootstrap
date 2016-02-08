@@ -29,7 +29,7 @@ default_playbook = r"""
 - hosts: all
   tasks:
     - name: debug
-      debug:
+      debug: >
 """
 
 
@@ -137,7 +137,7 @@ def _generate_ansible_config(config):
     return config['ansible']['config']['path']
 
 
-def _excute_ansible_playbook(config_path, inventories, options, playbook_path):
+def _excute_ansible_playbook(config_path, inventories, options, playbook_path, extra_vars):
     import yaml
 
     try:
@@ -163,14 +163,25 @@ def _excute_ansible_playbook(config_path, inventories, options, playbook_path):
     inventory.flush()
 
     if playbook_path is None:
-        playbook = tempfile.NamedTemporaryFile()
         if config is None:
-            pb = default_playbook
+            playbook = yaml.load(default_playbook)
         else:
-            pb = yaml.dump(config['ansible']['playbook'])
-        playbook.write(pb.encode('utf-8'))
-        playbook.flush()
-        playbook_path = playbook.name
+            playbook = config['ansible']['playbook']
+    else:
+        playbook = yaml.load(playbook_path)
+
+    if extra_vars is not None:
+        evars = json.loads(extra_vars)
+        for p in playbook:
+            if 'vars' in p:
+                p['vars'].update(evars)
+            else:
+                p['vars'] = evars
+
+    playbook_file = tempfile.NamedTemporaryFile()
+    playbook_file.write(yaml.dump(playbook).encode('utf-8'))
+    playbook_file.flush()
+    playbook_path = playbook_file.name
 
     args = ['ansible-playbook', '-i', inventory.name]
     if config is not None and 'options' in config['ansible']:
@@ -190,12 +201,12 @@ def _excute_ansible_playbook(config_path, inventories, options, playbook_path):
         print(exception.message)
 
 
-def _main(config_path, inventories, options, playbook_path):
+def _main(config_path, inventories, options, playbook_path, extra_vars):
     _install_CLT()
     _install_homebrew(homebrew_url)
     _install_pip(pip_url)
     _install_ansible()
-    _excute_ansible_playbook(config_path, inventories, options, playbook_path)
+    _excute_ansible_playbook(config_path, inventories, options, playbook_path, extra_vars)
 
 
 if __name__ == '__main__':
@@ -221,5 +232,10 @@ if __name__ == '__main__':
                         default=None,
                         type=str,
                         help='Override the playbook of the configuration file')
+    parser.add_argument('-v', '--vars',
+                        action='store',
+                        default=None,
+                        type=str,
+                        help='added the playbook vars')
     args = parser.parse_args()
-    _main(args.config, args.inventory, args.options, args.playbook)
+    _main(args.config, args.inventory, args.options, args.playbook, args.vars)
