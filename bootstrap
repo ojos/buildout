@@ -168,7 +168,8 @@ def _excute_ansible_playbook(config_path, inventories, options, playbook_path, e
         else:
             playbook = config['ansible']['playbook']
     else:
-        playbook = yaml.load(playbook_path)
+        with open(playbook_path, 'r') as file:
+            playbook = yaml.load(file)
 
     if extra_vars is not None:
         evars = json.loads(extra_vars)
