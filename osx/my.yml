@@ -20,6 +20,7 @@ ansible:
               - caskroom/cask
               - caskroom/versions
               - peco/peco
+              - neovim/neovim
             devtools_packages:
               - direnv
               - git-flow
@@ -36,6 +37,8 @@ ansible:
               - libyaml
               - peco
               - brew-cask
+              - neovim
+              - ctags
               - freetype
               - imagemagick
               - libtiff
