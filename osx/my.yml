@@ -37,6 +37,7 @@ ansible:
               - libyaml
               - peco
               - brew-cask
+              - tmux
               - neovim
               - ctags
               - freetype
