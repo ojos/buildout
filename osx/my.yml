@@ -21,11 +21,13 @@ ansible:
               - caskroom/versions
               - peco/peco
               - neovim/neovim
+              - ojos/goad
             devtools_packages:
               - direnv
               - git-flow
               - gibo
               - hub
+              - goad
               - jpeg
               - libtool
               - openssl
